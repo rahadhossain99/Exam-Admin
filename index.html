@@ -185,6 +185,40 @@
             to { transform: translateX(0); }
         }
 
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 40px;
+        }
+        .login-screen h2 {
+            margin-bottom: 30px;
+        }
+        .btn-google-login {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: #4285F4;
+            color: white;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .btn-google-login:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+        .btn-google-login i {
+            font-size: 1.2em;
+        }
     </style>
 </head>
 <body>
@@ -215,16 +249,15 @@
         <h2 class="access-denied"><i class="fas fa-exclamation-triangle"></i> অ্যাক্সেস অনুমোদিত নয়!</h2>
     </div>
 
-    <div id="password-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box">
-            <h3>অ্যাডমিন অ্যাক্সেসের জন্য পাসওয়ার্ড দিন:</h3>
-            <input type="password" id="password-input" placeholder="পাসওয়ার্ড">
-            <button id="password-submit-btn">প্রবেশ করুন</button>
+    <div id="login-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box login-screen">
+            <h2>অ্যাডমিন হিসেবে লগইন করুন</h2>
+            <button id="google-login-btn" class="btn-google-login">
+                <i class="fab fa-google"></i> গুগল দিয়ে লগইন করুন
+            </button>
         </div>
     </div>
     
-    <div id="error-message-box" class="message-box"></div>
-
     <script>
         // --- YOUR FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -247,15 +280,6 @@
             return `${String(m).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         }
         
-        function showMessage(message) {
-            const msgBox = document.getElementById('error-message-box');
-            msgBox.textContent = message;
-            msgBox.classList.add('show');
-            setTimeout(() => {
-                msgBox.classList.remove('show');
-            }, 3000);
-        }
-
         async function loadAdminDashboard() {
             document.getElementById('admin-container').classList.add('active');
             const tableBody = document.getElementById('results-table-body');
@@ -265,6 +289,12 @@
             spinner.style.display = 'block';
 
             try {
+                // Ensure a user is authenticated before attempting to fetch
+                const user = auth.currentUser;
+                if (!user) {
+                    throw new Error("User not authenticated.");
+                }
+                
                 const snapshot = await db.collection('results').orderBy('submittedAt', 'desc').get();
                 spinner.style.display = 'none';
 
@@ -290,28 +320,35 @@
             } catch (error) {
                 console.error("Error loading admin data: ", error);
                 spinner.style.display = 'none';
-                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">তথ্য লোড করতে সমস্যা হয়েছে।</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">তথ্য লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে Firebase Security Rules চেক করুন।</td></tr>';
             }
         }
 
         window.onload = () => {
             auth.onAuthStateChanged(user => {
+                const loginModal = document.getElementById('login-modal');
+                const accessDenied = document.getElementById('access-denied-message');
+
                 if (user && user.email === 'smartwork19999@gmail.com') {
+                    loginModal.style.display = 'none';
+                    accessDenied.style.display = 'none';
                     loadAdminDashboard();
+                } else if (user && user.email !== 'smartwork19999@gmail.com') {
+                    loginModal.style.display = 'none';
+                    accessDenied.style.display = 'block';
                 } else {
-                    document.getElementById('password-modal').style.display = 'flex';
+                    loginModal.style.display = 'flex';
+                    accessDenied.style.display = 'none';
                 }
             });
         };
         
-        document.getElementById('password-submit-btn').addEventListener('click', () => {
-            const password = document.getElementById('password-input').value;
-            if (password === "999") {
-                document.getElementById('password-modal').style.display = 'none';
-                loadAdminDashboard();
-            } else {
-                showMessage("ভুল পাসওয়ার্ড!");
-            }
+        document.getElementById('google-login-btn').addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(error => {
+                console.error("Login Error:", error);
+                // You can add a more user-friendly error display here
+            });
         });
         
         document.getElementById('back-to-home-btn').addEventListener('click', () => {
